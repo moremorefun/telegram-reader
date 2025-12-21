@@ -18,6 +18,37 @@ from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
 from .config import API_ID, API_HASH, get_session_path, is_configured, has_session
 
+# 对话缓存：名称 -> ID
+_dialog_cache: dict[str, int] = {}
+
+
+async def resolve_chat(tg: TelegramClient, chat: int | str) -> int:
+    """解析聊天标识，支持 ID、名称、用户名"""
+    # 如果是整数，直接返回
+    if isinstance(chat, int):
+        return chat
+
+    # 如果是字符串数字，转换为整数
+    if isinstance(chat, str) and chat.lstrip('-').isdigit():
+        return int(chat)
+
+    # 尝试从缓存获取
+    if chat in _dialog_cache:
+        return _dialog_cache[chat]
+
+    # 如果是 @username 格式，直接使用 Telethon 解析
+    if chat.startswith('@'):
+        entity = await tg.get_entity(chat)
+        return entity.id
+
+    # 遍历对话列表匹配名称
+    async for dialog in tg.iter_dialogs():
+        _dialog_cache[dialog.name] = dialog.id
+        if dialog.name == chat:
+            return dialog.id
+
+    raise ValueError(f"找不到对话: {chat}")
+
 # 全局客户端
 client: TelegramClient | None = None
 
@@ -60,8 +91,8 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "chat_id": {
-                        "type": "integer",
-                        "description": "群组/对话 ID(如 -1003549587777)"
+                        "type": ["integer", "string"],
+                        "description": "群组/对话标识：可以是 ID(如 -1003549587777)、名称(如 '钓鱼翁')或用户名(如 '@username')"
                     },
                     "from_user": {
                         "type": "string",
@@ -92,8 +123,8 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "chat_id": {
-                        "type": "integer",
-                        "description": "群组/对话 ID"
+                        "type": ["integer", "string"],
+                        "description": "群组/对话标识：可以是 ID、名称或用户名"
                     },
                     "message_ids": {
                         "type": "array",
@@ -111,8 +142,8 @@ async def list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {
                     "chat_id": {
-                        "type": "integer",
-                        "description": "群组/对话 ID"
+                        "type": ["integer", "string"],
+                        "description": "群组/对话标识：可以是 ID、名称或用户名"
                     },
                     "query": {
                         "type": "string",
@@ -139,6 +170,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
         limit = arguments.get("limit", 50)
         dialogs = []
         async for dialog in tg.iter_dialogs(limit=limit):
+            # 填充缓存
+            _dialog_cache[dialog.name] = dialog.id
             dialogs.append({
                 "id": dialog.id,
                 "name": dialog.name,
@@ -148,7 +181,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
         return [TextContent(type="text", text=json.dumps(dialogs, ensure_ascii=False, indent=2))]
 
     elif name == "telegram_messages":
-        chat_id = arguments["chat_id"]
+        chat_id = await resolve_chat(tg, arguments["chat_id"])
         from_user = arguments.get("from_user")
         limit = arguments.get("limit", 50)
         days = arguments.get("days")
@@ -197,7 +230,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
         return [TextContent(type="text", text=json.dumps(messages, ensure_ascii=False, indent=2))]
 
     elif name == "telegram_download":
-        chat_id = arguments["chat_id"]
+        chat_id = await resolve_chat(tg, arguments["chat_id"])
         message_ids = arguments["message_ids"]
 
         from .config import DOWNLOAD_DIR
@@ -215,7 +248,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
         return [TextContent(type="text", text=json.dumps(results, ensure_ascii=False, indent=2))]
 
     elif name == "telegram_search":
-        chat_id = arguments["chat_id"]
+        chat_id = await resolve_chat(tg, arguments["chat_id"])
         query = arguments["query"]
         limit = arguments.get("limit", 20)
 
