@@ -15,7 +15,7 @@
 
 ```bash
 # 使用 uvx（推荐）
-uvx telegram-reader-mcp
+uvx --from telegram-reader-mcp telegram-mcp
 
 # 或从源码安装
 git clone https://github.com/moremorefun/telegram-reader.git
@@ -30,15 +30,31 @@ uv sync
 首次使用需要登录：
 
 ```bash
-uv run telegram-mcp-login
+uvx --from telegram-reader-mcp telegram-mcp-login
 ```
 
-按提示输入手机号和验证码，登录成功后会生成 session 文件。
+按提示输入手机号和验证码，登录成功后会在 `~/.config/telegram-mcp/` 生成 session 文件。
 
 检查登录状态：
 
 ```bash
-uv run telegram-mcp-status
+uvx --from telegram-reader-mcp telegram-mcp-status
+```
+
+示例输出：
+```
+==================================================
+Telegram MCP 状态检查
+==================================================
+
+配置目录: ~/.config/telegram-mcp
+Session 状态: 存在
+
+正在验证 session...
+
+Session 有效!
+  账号: Your Name
+  用户名: @your_username
 ```
 
 ## 在 Claude Code 中使用
@@ -50,7 +66,7 @@ uv run telegram-mcp-status
   "mcpServers": {
     "telegram": {
       "command": "uvx",
-      "args": ["telegram-reader-mcp"],
+      "args": ["--from", "telegram-reader-mcp", "telegram-mcp"],
       "env": {
         "TELEGRAM_API_ID": "your_api_id",
         "TELEGRAM_API_HASH": "your_api_hash",
