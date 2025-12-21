@@ -2,6 +2,8 @@
 
 让 Claude Code 读取 Telegram 消息的 MCP 服务器。
 
+[![PyPI](https://img.shields.io/pypi/v/telegram-reader-mcp)](https://pypi.org/project/telegram-reader-mcp/)
+
 ## 功能
 
 - `telegram_dialogs` - 获取对话列表（群组、频道、私聊）
@@ -12,6 +14,11 @@
 ## 安装
 
 ```bash
+# 使用 uvx（推荐）
+uvx telegram-reader-mcp
+
+# 或从源码安装
+git clone https://github.com/moremorefun/telegram-reader.git
 cd telegram-reader
 uv sync
 ```
@@ -42,14 +49,8 @@ uv run telegram-mcp-status
 {
   "mcpServers": {
     "telegram": {
-      "type": "stdio",
-      "command": "uv",
-      "args": [
-        "run",
-        "--directory",
-        "/path/to/telegram-reader",
-        "telegram-mcp"
-      ],
+      "command": "uvx",
+      "args": ["telegram-reader-mcp"],
       "env": {
         "TELEGRAM_API_ID": "your_api_id",
         "TELEGRAM_API_HASH": "your_api_hash",
@@ -60,9 +61,11 @@ uv run telegram-mcp-status
 }
 ```
 
-环境变量说明：
-- `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` - API 凭证（可选，有默认值）
-- `TELEGRAM_DOWNLOAD_DIR` - 下载目录（可选，默认 `~/.config/telegram-mcp/downloads`）
+环境变量（均为可选）：
+- `TELEGRAM_API_ID` / `TELEGRAM_API_HASH` - API 凭证，有内置默认值
+- `TELEGRAM_DOWNLOAD_DIR` - 下载目录，默认 `~/.config/telegram-mcp/downloads`
+
+获取自己的 API 凭证：https://my.telegram.org → API development tools
 
 重启 Claude Code 后即可使用。
 
