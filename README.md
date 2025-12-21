@@ -18,26 +18,7 @@ uv sync
 
 ## 配置
 
-### 1. API 凭证（可选）
-
-项目内置了默认的公共 API 凭证，开箱即用，无需配置。
-
-如需使用自己的 API 凭证（推荐），创建 `.env` 文件：
-
-```bash
-cp .env.example .env
-```
-
-编辑 `.env`：
-
-```
-TELEGRAM_API_ID=你的api_id
-TELEGRAM_API_HASH=你的api_hash
-```
-
-获取方式：访问 https://my.telegram.org → API development tools
-
-### 2. 登录 Telegram
+### 登录 Telegram
 
 首次使用需要登录：
 
@@ -94,18 +75,7 @@ uv run telegram-mcp-status
 - "在 XXX 群组中搜索 关键词"
 - "下载这条消息的图片"
 
-## 文件说明
-
-```
-telegram-reader/
-├── .env              # API 凭证配置
-├── src/telegram_mcp/ # 源代码
-├── downloads/        # 下载的媒体文件
-└── *.session         # Telegram 登录会话（自动生成）
-```
-
 ## 注意事项
 
-- `.env` 和 `*.session` 文件包含敏感信息，已在 `.gitignore` 中排除
-- Session 文件保存登录状态，删除后需重新登录
-- API 凭证是个人的，不要分享给他人
+- Session 文件 (`~/.config/telegram-mcp/session.session`) 保存登录状态，删除后需重新登录
+- 内置公共 API 可能因使用人数多而受限，建议申请自己的 API 凭证
