@@ -29,7 +29,8 @@ API_ID = int(os.getenv("TELEGRAM_API_ID", "0")) or DEFAULT_API_ID
 API_HASH = os.getenv("TELEGRAM_API_HASH", "") or DEFAULT_API_HASH
 
 # 下载目录
-DOWNLOAD_DIR = Path(os.getenv("TELEGRAM_DOWNLOAD_DIR", "")) or (CONFIG_DIR / "downloads")
+_download_dir_env = os.getenv("TELEGRAM_DOWNLOAD_DIR", "").strip()
+DOWNLOAD_DIR = Path(_download_dir_env) if _download_dir_env else (CONFIG_DIR / "downloads")
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

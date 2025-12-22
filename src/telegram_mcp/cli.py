@@ -137,9 +137,139 @@ def status():
     asyncio.run(check_status())
 
 
+# ========== 缓存管理命令 ==========
+
+def format_size(size_bytes: int) -> str:
+    """格式化文件大小"""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
+
+
+async def show_cache_stats():
+    """显示缓存统计信息"""
+    from . import cache
+
+    await cache.init_cache()
+    stats = await cache.get_cache_stats()
+    await cache.close_db()
+
+    print()
+    print("=" * 50)
+    print("Telegram MCP 缓存统计")
+    print("=" * 50)
+    print()
+    print(f"数据库路径: {stats['db_path']}")
+    print(f"数据库大小: {format_size(stats['db_size_bytes'])}")
+    print(f"下载目录:   {stats['download_dir']}")
+    print()
+    print("--- 名称映射缓存 ---")
+    print(f"  缓存条目: {stats['alias_count']} 条")
+    print()
+    print("--- 媒体路径缓存 ---")
+    print(f"  缓存条目: {stats['media_count']} 条")
+    print(f"  记录大小: {format_size(stats['media_size_bytes'])}")
+    print(f"  实际占用: {format_size(stats['actual_disk_bytes'])}")
+    print()
+    print("--- 容量限制 ---")
+    print(f"  最大容量: {format_size(stats['max_cache_size'])}")
+    usage_pct = (stats['media_size_bytes'] / stats['max_cache_size'] * 100) if stats['max_cache_size'] > 0 else 0
+    print(f"  使用率:   {usage_pct:.1f}%")
+    print()
+
+
+def cache_stats():
+    """缓存统计命令入口"""
+    asyncio.run(show_cache_stats())
+
+
+async def do_cache_clear(clear_type: str, delete_files: bool):
+    """执行缓存清理"""
+    from . import cache
+
+    await cache.init_cache()
+
+    # 清理前统计
+    stats_before = await cache.get_cache_stats()
+
+    if clear_type == "all":
+        await cache.clear_all_cache(delete_files=delete_files)
+        print(f"已清空所有缓存")
+        print(f"  - 名称映射: {stats_before['alias_count']} 条")
+        print(f"  - 媒体缓存: {stats_before['media_count']} 条")
+    elif clear_type == "media":
+        await cache.clear_media_cache(delete_files=delete_files)
+        print(f"已清空媒体缓存: {stats_before['media_count']} 条")
+    elif clear_type == "alias":
+        await cache.clear_alias_cache()
+        print(f"已清空名称映射: {stats_before['alias_count']} 条")
+
+    if delete_files:
+        print(f"已删除媒体文件: {format_size(stats_before['actual_disk_bytes'])}")
+
+    await cache.close_db()
+
+
+def cache_clear():
+    """缓存清理命令入口"""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="telegram-mcp-cache-clear",
+        description="清理 Telegram MCP 缓存"
+    )
+    parser.add_argument(
+        "type",
+        nargs="?",
+        choices=["all", "media", "alias"],
+        default="all",
+        help="清理类型: all(全部), media(媒体), alias(名称映射)"
+    )
+    parser.add_argument(
+        "--delete-files",
+        action="store_true",
+        help="同时删除下载的媒体文件"
+    )
+    parser.add_argument(
+        "-y", "--yes",
+        action="store_true",
+        help="跳过确认提示"
+    )
+
+    args = parser.parse_args()
+
+    # 确认提示
+    if not args.yes:
+        msg = f"确定要清空 {args.type} 缓存吗？"
+        if args.delete_files:
+            msg += "（包括媒体文件）"
+        confirm = input(f"{msg} [y/N]: ").strip().lower()
+        if confirm != "y":
+            print("已取消")
+            return
+
+    print()
+    asyncio.run(do_cache_clear(args.type, args.delete_files))
+    print()
+
+
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "status":
-        status()
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1]
+        if cmd == "status":
+            status()
+        elif cmd == "cache-stats":
+            cache_stats()
+        elif cmd == "cache-clear":
+            sys.argv = sys.argv[1:]  # 移除子命令
+            cache_clear()
+        else:
+            login()
     else:
         login()

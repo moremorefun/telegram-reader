@@ -17,9 +17,7 @@ from telethon import TelegramClient
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
 from .config import API_ID, API_HASH, get_session_path, is_configured, has_session
-
-# 对话缓存：名称 -> ID
-_dialog_cache: dict[str, int] = {}
+from . import cache
 
 
 async def resolve_chat(tg: TelegramClient, chat: int | str) -> int:
@@ -32,20 +30,30 @@ async def resolve_chat(tg: TelegramClient, chat: int | str) -> int:
     if isinstance(chat, str) and chat.lstrip('-').isdigit():
         return int(chat)
 
-    # 尝试从缓存获取
-    if chat in _dialog_cache:
-        return _dialog_cache[chat]
+    # 尝试从 SQLite 缓存获取
+    cached_id = await cache.get_chat_id(chat)
+    if cached_id:
+        return cached_id
 
     # 如果是 @username 格式，直接使用 Telethon 解析
     if chat.startswith('@'):
         entity = await tg.get_entity(chat)
+        await cache.set_chat_alias(chat, entity.id)
         return entity.id
 
     # 遍历对话列表匹配名称
+    mappings = []
+    matched_id = None
     async for dialog in tg.iter_dialogs():
-        _dialog_cache[dialog.name] = dialog.id
-        if dialog.name == chat:
-            return dialog.id
+        mappings.append((dialog.name, dialog.id))
+        if dialog.name == chat and matched_id is None:
+            matched_id = dialog.id
+
+    # 批量写入缓存
+    await cache.set_chat_aliases_batch(mappings)
+
+    if matched_id:
+        return matched_id
 
     raise ValueError(f"找不到对话: {chat}")
 
@@ -169,15 +177,17 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
     if name == "telegram_dialogs":
         limit = arguments.get("limit", 50)
         dialogs = []
+        mappings = []
         async for dialog in tg.iter_dialogs(limit=limit):
-            # 填充缓存
-            _dialog_cache[dialog.name] = dialog.id
+            mappings.append((dialog.name, dialog.id))
             dialogs.append({
                 "id": dialog.id,
                 "name": dialog.name,
                 "type": "群组" if dialog.is_group else ("频道" if dialog.is_channel else "私聊"),
                 "unread": dialog.unread_count
             })
+        # 批量写入缓存
+        await cache.set_chat_aliases_batch(mappings)
         return [TextContent(type="text", text=json.dumps(dialogs, ensure_ascii=False, indent=2))]
 
     elif name == "telegram_messages":
@@ -234,14 +244,39 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
         message_ids = arguments["message_ids"]
 
         from .config import DOWNLOAD_DIR
+        from pathlib import Path
         download_dir = DOWNLOAD_DIR
 
         results = []
         for msg_id in message_ids:
+            # 检查缓存
+            cached_path = await cache.get_media_path(chat_id, msg_id)
+            if cached_path:
+                # 更新访问时间（LRU）
+                await cache.update_access_time(chat_id, msg_id)
+                results.append({
+                    "id": msg_id,
+                    "path": cached_path,
+                    "success": True,
+                    "cached": True
+                })
+                continue
+
+            # 缓存未命中，下载媒体
             message = await tg.get_messages(chat_id, ids=msg_id)
             if message and message.media:
                 path = await message.download_media(file=str(download_dir))
-                results.append({"id": msg_id, "path": path, "success": True})
+                if path:
+                    # 写入缓存
+                    file_size = None
+                    try:
+                        file_size = Path(path).stat().st_size
+                    except OSError:
+                        pass
+                    await cache.set_media_path(chat_id, msg_id, path, file_size)
+                    # 检查是否需要 LRU 淘汰
+                    await cache.maybe_evict()
+                results.append({"id": msg_id, "path": path, "success": True, "cached": False})
             else:
                 results.append({"id": msg_id, "path": None, "success": False})
 
@@ -285,6 +320,9 @@ async def run_server():
         print("错误: 未找到登录 session", file=sys.stderr)
         print("请运行 telegram-mcp-login 进行登录", file=sys.stderr)
         sys.exit(1)
+
+    # 初始化缓存
+    await cache.init_cache()
 
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
