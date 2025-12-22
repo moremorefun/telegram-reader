@@ -216,6 +216,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
                 "id": message.id,
                 "date": message.date.strftime("%Y-%m-%d %H:%M") if message.date else None,
                 "sender": None,
+                "forward_from": None,
+                "forward_date": None,
                 "text": message.text or "",
                 "has_media": has_media,
                 "media_type": None
@@ -226,6 +228,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
                     msg_data["sender"] = f"{message.sender.first_name or ''} {message.sender.last_name or ''}".strip()
                 elif hasattr(message.sender, "title"):
                     msg_data["sender"] = message.sender.title
+
+            # 获取转发消息的原始发送者
+            if message.forward:
+                fwd = message.forward
+                if fwd.sender_name:
+                    msg_data["forward_from"] = fwd.sender_name
+                elif fwd.sender:
+                    if hasattr(fwd.sender, "first_name"):
+                        msg_data["forward_from"] = f"{fwd.sender.first_name or ''} {fwd.sender.last_name or ''}".strip()
+                    elif hasattr(fwd.sender, "title"):
+                        msg_data["forward_from"] = fwd.sender.title
+                elif fwd.chat:
+                    msg_data["forward_from"] = fwd.chat.title if hasattr(fwd.chat, "title") else str(fwd.chat.id)
+                if fwd.date:
+                    msg_data["forward_date"] = fwd.date.strftime("%Y-%m-%d %H:%M")
 
             if message.media:
                 if isinstance(message.media, MessageMediaPhoto):
@@ -293,6 +310,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
                 "id": message.id,
                 "date": message.date.strftime("%Y-%m-%d %H:%M") if message.date else None,
                 "sender": None,
+                "forward_from": None,
+                "forward_date": None,
                 "text": message.text or "",
                 "has_media": message.media is not None
             }
@@ -300,6 +319,21 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             if message.sender:
                 if hasattr(message.sender, "first_name"):
                     msg_data["sender"] = f"{message.sender.first_name or ''} {message.sender.last_name or ''}".strip()
+
+            # 获取转发消息的原始发送者
+            if message.forward:
+                fwd = message.forward
+                if fwd.sender_name:
+                    msg_data["forward_from"] = fwd.sender_name
+                elif fwd.sender:
+                    if hasattr(fwd.sender, "first_name"):
+                        msg_data["forward_from"] = f"{fwd.sender.first_name or ''} {fwd.sender.last_name or ''}".strip()
+                    elif hasattr(fwd.sender, "title"):
+                        msg_data["forward_from"] = fwd.sender.title
+                elif fwd.chat:
+                    msg_data["forward_from"] = fwd.chat.title if hasattr(fwd.chat, "title") else str(fwd.chat.id)
+                if fwd.date:
+                    msg_data["forward_date"] = fwd.date.strftime("%Y-%m-%d %H:%M")
 
             messages.append(msg_data)
 
