@@ -232,16 +232,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             # 获取转发消息的原始发送者
             if message.forward:
                 fwd = message.forward
-                if hasattr(fwd, "sender_name") and fwd.sender_name:
-                    msg_data["forward_from"] = fwd.sender_name
-                elif hasattr(fwd, "sender") and fwd.sender:
-                    if hasattr(fwd.sender, "first_name"):
-                        msg_data["forward_from"] = f"{fwd.sender.first_name or ''} {fwd.sender.last_name or ''}".strip()
-                    elif hasattr(fwd.sender, "title"):
-                        msg_data["forward_from"] = fwd.sender.title
-                elif hasattr(fwd, "chat") and fwd.chat:
-                    msg_data["forward_from"] = fwd.chat.title if hasattr(fwd.chat, "title") else str(fwd.chat.id)
-                if hasattr(fwd, "date") and fwd.date:
+                # 优先使用 from_name（隐私保护时仍可能有值）
+                if fwd.from_name:
+                    msg_data["forward_from"] = fwd.from_name
+                # 尝试从 from_id 获取完整用户/频道信息
+                elif fwd.from_id:
+                    try:
+                        entity = await tg.get_entity(fwd.from_id)
+                        if hasattr(entity, "first_name"):
+                            msg_data["forward_from"] = f"{entity.first_name or ''} {entity.last_name or ''}".strip()
+                        elif hasattr(entity, "title"):
+                            msg_data["forward_from"] = entity.title
+                    except Exception:
+                        msg_data["forward_from"] = str(fwd.from_id)
+                if fwd.date:
                     msg_data["forward_date"] = fwd.date.strftime("%Y-%m-%d %H:%M")
 
             if message.media:
@@ -323,16 +327,20 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             # 获取转发消息的原始发送者
             if message.forward:
                 fwd = message.forward
-                if hasattr(fwd, "sender_name") and fwd.sender_name:
-                    msg_data["forward_from"] = fwd.sender_name
-                elif hasattr(fwd, "sender") and fwd.sender:
-                    if hasattr(fwd.sender, "first_name"):
-                        msg_data["forward_from"] = f"{fwd.sender.first_name or ''} {fwd.sender.last_name or ''}".strip()
-                    elif hasattr(fwd.sender, "title"):
-                        msg_data["forward_from"] = fwd.sender.title
-                elif hasattr(fwd, "chat") and fwd.chat:
-                    msg_data["forward_from"] = fwd.chat.title if hasattr(fwd.chat, "title") else str(fwd.chat.id)
-                if hasattr(fwd, "date") and fwd.date:
+                # 优先使用 from_name（隐私保护时仍可能有值）
+                if fwd.from_name:
+                    msg_data["forward_from"] = fwd.from_name
+                # 尝试从 from_id 获取完整用户/频道信息
+                elif fwd.from_id:
+                    try:
+                        entity = await tg.get_entity(fwd.from_id)
+                        if hasattr(entity, "first_name"):
+                            msg_data["forward_from"] = f"{entity.first_name or ''} {entity.last_name or ''}".strip()
+                        elif hasattr(entity, "title"):
+                            msg_data["forward_from"] = entity.title
+                    except Exception:
+                        msg_data["forward_from"] = str(fwd.from_id)
+                if fwd.date:
                     msg_data["forward_date"] = fwd.date.strftime("%Y-%m-%d %H:%M")
 
             messages.append(msg_data)
