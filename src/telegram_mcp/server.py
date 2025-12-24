@@ -232,16 +232,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             # 获取转发消息的原始发送者
             if message.forward:
                 fwd = message.forward
-                if fwd.sender_name:
+                if hasattr(fwd, "sender_name") and fwd.sender_name:
                     msg_data["forward_from"] = fwd.sender_name
-                elif fwd.sender:
+                elif hasattr(fwd, "sender") and fwd.sender:
                     if hasattr(fwd.sender, "first_name"):
                         msg_data["forward_from"] = f"{fwd.sender.first_name or ''} {fwd.sender.last_name or ''}".strip()
                     elif hasattr(fwd.sender, "title"):
                         msg_data["forward_from"] = fwd.sender.title
-                elif fwd.chat:
+                elif hasattr(fwd, "chat") and fwd.chat:
                     msg_data["forward_from"] = fwd.chat.title if hasattr(fwd.chat, "title") else str(fwd.chat.id)
-                if fwd.date:
+                if hasattr(fwd, "date") and fwd.date:
                     msg_data["forward_date"] = fwd.date.strftime("%Y-%m-%d %H:%M")
 
             if message.media:
@@ -323,16 +323,16 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent | ImageConte
             # 获取转发消息的原始发送者
             if message.forward:
                 fwd = message.forward
-                if fwd.sender_name:
+                if hasattr(fwd, "sender_name") and fwd.sender_name:
                     msg_data["forward_from"] = fwd.sender_name
-                elif fwd.sender:
+                elif hasattr(fwd, "sender") and fwd.sender:
                     if hasattr(fwd.sender, "first_name"):
                         msg_data["forward_from"] = f"{fwd.sender.first_name or ''} {fwd.sender.last_name or ''}".strip()
                     elif hasattr(fwd.sender, "title"):
                         msg_data["forward_from"] = fwd.sender.title
-                elif fwd.chat:
+                elif hasattr(fwd, "chat") and fwd.chat:
                     msg_data["forward_from"] = fwd.chat.title if hasattr(fwd.chat, "title") else str(fwd.chat.id)
-                if fwd.date:
+                if hasattr(fwd, "date") and fwd.date:
                     msg_data["forward_date"] = fwd.date.strftime("%Y-%m-%d %H:%M")
 
             messages.append(msg_data)
