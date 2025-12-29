@@ -7,7 +7,9 @@ Telegram MCP Server
 import asyncio
 import json
 import sys
+import fcntl
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -16,8 +18,11 @@ from mcp.types import Tool, TextContent, ImageContent
 from telethon import TelegramClient
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
-from .config import API_ID, API_HASH, get_session_path, is_configured, has_session
+from .config import API_ID, API_HASH, get_session_path, is_configured, has_session, CONFIG_DIR
 from . import cache
+
+# 锁文件路径
+LOCK_FILE = CONFIG_DIR / "server.lock"
 
 
 async def resolve_chat(tg: TelegramClient, chat: int | str) -> int:
@@ -59,6 +64,33 @@ async def resolve_chat(tg: TelegramClient, chat: int | str) -> int:
 
 # 全局客户端
 client: TelegramClient | None = None
+# 全局锁文件句柄
+_lock_fd = None
+
+
+def acquire_lock() -> bool:
+    """获取独占锁，防止多实例运行"""
+    global _lock_fd
+    try:
+        _lock_fd = open(LOCK_FILE, 'w')
+        fcntl.flock(_lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _lock_fd.write(str(asyncio.current_task().get_name() if asyncio.current_task() else 'main'))
+        _lock_fd.flush()
+        return True
+    except (IOError, OSError):
+        return False
+
+
+def release_lock():
+    """释放锁"""
+    global _lock_fd
+    if _lock_fd:
+        try:
+            fcntl.flock(_lock_fd.fileno(), fcntl.LOCK_UN)
+            _lock_fd.close()
+        except Exception:
+            pass
+        _lock_fd = None
 
 
 async def get_client() -> TelegramClient:
@@ -68,6 +100,14 @@ async def get_client() -> TelegramClient:
         client = TelegramClient(get_session_path(), API_ID, API_HASH)
         await client.start()
     return client
+
+
+async def close_client():
+    """关闭 Telegram 客户端"""
+    global client
+    if client:
+        await client.disconnect()
+        client = None
 
 
 # 创建 MCP 服务器
@@ -363,15 +403,27 @@ async def run_server():
         print("请运行 telegram-mcp-login 进行登录", file=sys.stderr)
         sys.exit(1)
 
-    # 初始化缓存
-    await cache.init_cache()
+    # 尝试获取锁
+    if not acquire_lock():
+        print("错误: 另一个 telegram-mcp 实例正在运行", file=sys.stderr)
+        print("请先停止其他实例，或删除锁文件: " + str(LOCK_FILE), file=sys.stderr)
+        sys.exit(1)
 
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options()
-        )
+    try:
+        # 初始化缓存
+        await cache.init_cache()
+
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options()
+            )
+    finally:
+        # 清理资源
+        await close_client()
+        await cache.close_db()
+        release_lock()
 
 
 def main():

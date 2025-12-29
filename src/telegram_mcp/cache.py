@@ -25,10 +25,12 @@ async def get_db() -> aiosqlite.Connection:
     """获取数据库连接（复用单一连接）"""
     global _db
     if _db is None:
-        _db = await aiosqlite.connect(CACHE_DB)
+        _db = await aiosqlite.connect(CACHE_DB, timeout=30.0)
         _db.row_factory = aiosqlite.Row
         # 启用 WAL 模式，提升并发性能
         await _db.execute("PRAGMA journal_mode=WAL")
+        # 设置 busy_timeout，防止锁定错误
+        await _db.execute("PRAGMA busy_timeout=30000")
     return _db
 
 
